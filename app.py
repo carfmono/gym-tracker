@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import db
 
 db.init_db()
+db.migrate_db()
 
 st.set_page_config(
     layout="wide",
