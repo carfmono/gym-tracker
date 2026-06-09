@@ -1,13 +1,19 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
+import psycopg2
 import db
 
 
 def render_routine_log():
     st.subheader("Historial de rutinas")
 
-    routines = db.get_all_routines()
+    try:
+        routines = db.get_all_routines()
+    except psycopg2.DatabaseError:
+        st.error("No se pudo cargar el historial. Intenta recargar la página.")
+        return
+
     if routines:
         df = pd.DataFrame(routines)
         df = df.rename(columns={
@@ -42,11 +48,14 @@ def render_routine_log():
             if not version.strip() or not name.strip():
                 st.error("Versión y nombre son obligatorios.")
             else:
-                db.add_routine(
-                    version=version.strip(),
-                    name=name.strip(),
-                    start_date=start_date.strftime("%Y-%m-%d"),
-                    notes=notes.strip(),
-                )
-                st.success(f"Rutina '{name}' guardada.")
-                st.rerun()
+                try:
+                    db.add_routine(
+                        version=version.strip(),
+                        name=name.strip(),
+                        start_date=start_date.strftime("%Y-%m-%d"),
+                        notes=notes.strip(),
+                    )
+                    st.success(f"Rutina '{name}' guardada.")
+                    st.rerun()
+                except psycopg2.DatabaseError:
+                    st.error("Error al guardar la rutina. Intenta nuevamente.")

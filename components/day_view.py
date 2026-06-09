@@ -1,9 +1,12 @@
 import streamlit as st
 from datetime import date as date_type
+import psycopg2
 import db
 from data import WEEK_PLAN, POSTURE_ROUTINE, WEEKDAY_TO_KEY, DAY_ORDER
 
 ANKLE_COLORS = {"PERONEO": "#C0392B", "AQUILES": "#A93226"}
+
+_DB_ERROR = "Error de conexión. Recarga la página."
 
 
 def render_day_view():
@@ -33,17 +36,30 @@ def render_day_view():
     )
 
     # ── Botón sesión ──────────────────────────────────────────────────────────
-    session_done = db.get_session(date_str)
+    try:
+        session_done = db.get_session(date_str)
+    except psycopg2.DatabaseError:
+        st.error(_DB_ERROR)
+        return
+
     btn_label = "✅ Sesión completada" if session_done else "○  Marcar sesión completada"
     btn_type = "secondary" if session_done else "primary"
     if st.button(btn_label, type=btn_type, key=f"session_{date_str}", use_container_width=True):
-        db.toggle_session(date_str)
+        try:
+            db.toggle_session(date_str)
+        except psycopg2.DatabaseError:
+            st.error(_DB_ERROR)
         st.rerun()
 
     st.divider()
 
     # ── Rutina de postura ─────────────────────────────────────────────────────
-    posture_state = db.get_posture_for_date(date_str)
+    try:
+        posture_state = db.get_posture_for_date(date_str)
+    except psycopg2.DatabaseError:
+        st.error(_DB_ERROR)
+        return
+
     posture_done = sum(1 for pid in POSTURE_ROUTINE if posture_state.get(pid, False))
 
     with st.expander(f"⭐ Postura diaria — {posture_done}/{len(POSTURE_ROUTINE)}"):
@@ -56,7 +72,10 @@ def render_day_view():
             )
             st.caption(pex["detail"])
             if checked != current:
-                db.set_posture(date_str, pid, checked)
+                try:
+                    db.set_posture(date_str, pid, checked)
+                except psycopg2.DatabaseError:
+                    st.error(_DB_ERROR)
                 st.rerun()
 
     st.divider()
@@ -72,15 +91,18 @@ def render_day_view():
             unsafe_allow_html=True,
         )
 
-    st.markdown(f"**Ejercicios**")
+    st.markdown("**Ejercicios**")
 
     # ── Lista de ejercicios ───────────────────────────────────────────────────
-    ex_state = db.get_exercises_for_date(date_str)
+    try:
+        ex_state = db.get_exercises_for_date(date_str)
+    except psycopg2.DatabaseError:
+        st.error(_DB_ERROR)
+        return
 
     for eid, ex in day["exercises"].items():
         current = ex_state.get(eid, False)
 
-        # Construir sub-línea de detalle + badges como texto
         sub_parts = [ex["detail"]]
         if ex.get("postura"):
             sub_parts.append("⭐ POSTURA")
@@ -95,7 +117,10 @@ def render_day_view():
         st.caption("  ·  ".join(sub_parts))
 
         if checked != current:
-            db.set_exercise(date_str, eid, checked)
+            try:
+                db.set_exercise(date_str, eid, checked)
+            except psycopg2.DatabaseError:
+                st.error(_DB_ERROR)
             st.rerun()
 
     # ── Cardio ────────────────────────────────────────────────────────────────

@@ -1,13 +1,22 @@
 import json
+import re
 import streamlit as st
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validate_date(date: str) -> str:
+    if not _DATE_RE.match(date):
+        raise ValueError(f"Formato de fecha inválido: {date!r}")
+    return date
+
 
 @contextmanager
 def get_connection():
-    conn = psycopg2.connect(st.secrets["DATABASE_URL"])
+    conn = psycopg2.connect(st.secrets["DATABASE_URL"], sslmode="require")
     conn.cursor_factory = psycopg2.extras.RealDictCursor
     try:
         yield conn
@@ -232,12 +241,14 @@ def migrate_db():
 # ── sessions ──────────────────────────────────────────────────────────────────
 
 def get_session(date: str) -> bool:
+    _validate_date(date)
     with get_connection() as conn:
         row = _fetch_one(conn, "SELECT completed FROM sessions WHERE date=%s", (date,))
         return bool(row["completed"]) if row else False
 
 
 def toggle_session(date: str):
+    _validate_date(date)
     current = get_session(date)
     new_val = 0 if current else 1
     with get_connection() as conn:
@@ -254,6 +265,7 @@ def toggle_session(date: str):
 # ── exercises ─────────────────────────────────────────────────────────────────
 
 def get_exercise(date: str, exercise_id: str) -> bool:
+    _validate_date(date)
     row_id = f"{date}:{exercise_id}"
     with get_connection() as conn:
         row = _fetch_one(conn, "SELECT completed FROM exercises WHERE id=%s", (row_id,))
@@ -261,6 +273,7 @@ def get_exercise(date: str, exercise_id: str) -> bool:
 
 
 def set_exercise(date: str, exercise_id: str, completed: bool):
+    _validate_date(date)
     row_id = f"{date}:{exercise_id}"
     val = 1 if completed else 0
     with get_connection() as conn:
@@ -275,6 +288,7 @@ def set_exercise(date: str, exercise_id: str, completed: bool):
 
 
 def get_exercises_for_date(date: str) -> dict:
+    _validate_date(date)
     with get_connection() as conn:
         rows = _fetch_all(conn, "SELECT exercise_id, completed FROM exercises WHERE date=%s", (date,))
         return {r["exercise_id"]: bool(r["completed"]) for r in rows}
@@ -283,6 +297,7 @@ def get_exercises_for_date(date: str) -> dict:
 # ── posture ───────────────────────────────────────────────────────────────────
 
 def get_posture(date: str, exercise_id: str) -> bool:
+    _validate_date(date)
     row_id = f"{date}:{exercise_id}"
     with get_connection() as conn:
         row = _fetch_one(conn, "SELECT completed FROM posture WHERE id=%s", (row_id,))
@@ -290,6 +305,7 @@ def get_posture(date: str, exercise_id: str) -> bool:
 
 
 def set_posture(date: str, exercise_id: str, completed: bool):
+    _validate_date(date)
     row_id = f"{date}:{exercise_id}"
     val = 1 if completed else 0
     with get_connection() as conn:
@@ -304,6 +320,7 @@ def set_posture(date: str, exercise_id: str, completed: bool):
 
 
 def get_posture_for_date(date: str) -> dict:
+    _validate_date(date)
     with get_connection() as conn:
         rows = _fetch_all(conn, "SELECT exercise_id, completed FROM posture WHERE date=%s", (date,))
         return {r["exercise_id"]: bool(r["completed"]) for r in rows}
@@ -314,6 +331,8 @@ def get_posture_for_date(date: str) -> dict:
 def get_stats_for_dates(dates: list[str]) -> dict:
     if not dates:
         return {}
+    for d in dates:
+        _validate_date(d)
     placeholders = ",".join(["%s"] * len(dates))
     with get_connection() as conn:
         sessions = _fetch_all(
