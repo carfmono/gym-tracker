@@ -7,7 +7,6 @@ from data import WEEK_PLAN, POSTURE_ROUTINE, DAY_ORDER, WEEKDAY_TO_KEY
 
 def render_week_view():
     today = date.today()
-    # Semana actual: lunes → domingo
     monday = today - timedelta(days=today.weekday())
     week_dates = [monday + timedelta(days=i) for i in range(7)]
     date_strs = [d.strftime("%Y-%m-%d") for d in week_dates]
@@ -50,18 +49,21 @@ def render_week_view():
             "Día": day["name"],
             "Fecha": day_date.strftime("%d/%m"),
             "Tipo": day["tag"],
-            "Ejercicios": f"{n_done}/{n_total}",
-            "Postura": f"{pos_done}/{len(POSTURE_ROUTINE)}",
-            "Sesión": session_icon,
+            "Ejerc.": f"{n_done}/{n_total}",
+            "Post.": f"{pos_done}/5",
+            "✓": session_icon,
         })
 
     adherencia = (total_sessions / 7 * 100) if total_sessions else 0
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Sesiones completadas", f"{total_sessions}/7")
-    c2.metric("Ejercicios realizados", f"{total_ex_done}/{total_ex_all}")
-    c3.metric("Días postura completa", f"{total_posture_days}/7")
-    c4.metric("Adherencia semanal", f"{adherencia:.0f}%")
+    # 2×2 para mobile
+    c1, c2 = st.columns(2)
+    c1.metric("Sesiones", f"{total_sessions}/7")
+    c2.metric("Adherencia", f"{adherencia:.0f}%")
+
+    c3, c4 = st.columns(2)
+    c3.metric("Ejercicios", f"{total_ex_done}/{total_ex_all}")
+    c4.metric("Días postura", f"{total_posture_days}/7")
 
     st.divider()
 
