@@ -4,18 +4,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-import db
 import styles
 import ui
 
-# ── DB init ────────────────────────────────────────────────────────────────────
-db.init_db()
-db.migrate_db()
-db.seed_achievements()
-db.seed_routine_templates()
-db.init_user_xp(1)
-
-# ── Page config ───────────────────────────────────────────────────────────────
+# ── Page config — must be first Streamlit call ────────────────────────────────
 st.set_page_config(
     layout="centered",
     page_title="Iron Age",
@@ -41,9 +33,30 @@ st.markdown(
 
 # ── Tab routing ───────────────────────────────────────────────────────────────
 tab = st.query_params.get("tab", "hoy")
-
-# Tab bar (fixed bottom)
 st.markdown(ui.tab_bar(tab), unsafe_allow_html=True)
+
+# ── DB init (after UI so errors show on screen, not as blank page) ────────────
+import db
+
+_db_error: str | None = None
+try:
+    db.init_db()
+    db.migrate_db()
+    db.seed_achievements()
+    db.seed_routine_templates()
+    db.init_user_xp(1)
+except KeyError:
+    _db_error = (
+        "**Secrets de base de datos no configurados.**  \n"
+        "Abre el panel de tu app en Streamlit Cloud → ⚙ Settings → Secrets  \n"
+        "y añade: `DATABASE_URL = \"postgresql://...\"`"
+    )
+except Exception as _e:
+    _db_error = f"**No se pudo conectar a la base de datos.** `{_e}`"
+
+if _db_error:
+    st.error(_db_error)
+    st.stop()
 
 # ── Render current page ───────────────────────────────────────────────────────
 if tab == "hoy":
@@ -57,16 +70,11 @@ elif tab == "entrenos":
     from components.routine_log import render_routine_log
 
     st.markdown(ui.screen_header("PROGRESO & RUTINAS", "ENTRENOS"), unsafe_allow_html=True)
-
     t1, t2, t3, t4 = st.tabs(["SEMANA", "MES", "BIBLIOTECA", "HISTORIAL"])
-    with t1:
-        render_week_view()
-    with t2:
-        render_month_view()
-    with t3:
-        render_routine_library()
-    with t4:
-        render_routine_log()
+    with t1: render_week_view()
+    with t2: render_month_view()
+    with t3: render_routine_library()
+    with t4: render_routine_log()
 
 elif tab == "records":
     from components.gamification_dashboard import render_gamification_dashboard

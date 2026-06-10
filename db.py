@@ -16,7 +16,11 @@ def _validate_date(date: str) -> str:
 
 @contextmanager
 def get_connection():
-    conn = psycopg2.connect(st.secrets["DATABASE_URL"], sslmode="require")
+    conn = psycopg2.connect(
+        st.secrets["DATABASE_URL"],
+        sslmode="require",
+        connect_timeout=10,
+    )
     conn.cursor_factory = psycopg2.extras.RealDictCursor
     try:
         yield conn
