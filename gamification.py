@@ -165,30 +165,11 @@ def _count_completed_routines(profile_id: int) -> int:
 
 
 def _count_perfect_weeks(profile_id: int) -> int:
-    with db.get_connection() as conn:
-        row = db._fetch_one(
-            conn,
-            "SELECT COUNT(*) AS cnt FROM weekly_goals WHERE profile_id=%s AND completed=TRUE",
-            (profile_id,),
-        )
-        return row["cnt"] if row else 0
+    return db.count_perfect_weeks(profile_id)
 
 
 def _count_posture_days(profile_id: int) -> int:
-    """Días con las 5 posturas completadas."""
-    from data import POSTURE_ROUTINE
-    n_posture = len(POSTURE_ROUTINE)
-    with db.get_connection() as conn:
-        row = db._fetch_one(
-            conn,
-            """SELECT COUNT(DISTINCT date) AS cnt
-               FROM posture
-               WHERE profile_id=%s
-               GROUP BY date
-               HAVING COUNT(CASE WHEN completed=1 THEN 1 END) >= %s""",
-            (profile_id, n_posture),
-        )
-    return row["cnt"] if row else 0
+    return db.count_posture_days(profile_id)
 
 
 # ── update_streak ─────────────────────────────────────────────────────────────

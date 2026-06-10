@@ -118,12 +118,9 @@ def render_profile():
         new_name = st.text_input("Nombre", value=nombre, max_chars=40)
         if st.form_submit_button("GUARDAR NOMBRE", use_container_width=True):
             try:
-                with db.get_connection() as conn:
-                    db._exec(
-                        conn,
-                        "UPDATE profiles SET name=%s WHERE id=%s",
-                        (new_name.strip() or "Entrenador", PROFILE_ID),
-                    )
+                db.get_client().table("profiles").update(
+                    {"name": new_name.strip() or "Entrenador"}
+                ).eq("id", PROFILE_ID).execute()
                 st.success("Nombre actualizado.")
                 st.rerun()
             except Exception:
