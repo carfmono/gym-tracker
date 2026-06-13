@@ -225,6 +225,7 @@ def member_card(
     level: int,
     total_xp: int,
     badges: list[str] | None = None,
+    avatar: str = "🏋️",
 ) -> str:
     badges_html = ""
     if badges:
@@ -237,7 +238,7 @@ def member_card(
     return (
         f'<div class="member-card">'
         f'<div style="display:flex;gap:14px;align-items:flex-start;">'
-        f'<div class="mc-avatar">🏋️</div>'
+        f'<div class="mc-avatar">{avatar}</div>'
         f'<div style="flex:1;">'
         f'<div class="mc-logo">Iron Age</div>'
         f'<div class="mc-name">{_e(name)}</div>'

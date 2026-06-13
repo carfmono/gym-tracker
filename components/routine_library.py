@@ -29,7 +29,8 @@ LEVEL_CHIPS = {
 }
 
 
-def render_routine_library(profile_id: int = 1):
+def render_routine_library():
+    profile_id = st.session_state.profile_id
     st.markdown(ui.label("BIBLIOTECA DE RUTINAS"), unsafe_allow_html=True)
 
     # ── Filters ────────────────────────────────────────────────────────────────
@@ -211,12 +212,11 @@ def _activate_template(profile_id: int, tmpl: dict):
 
 def _complete_routine(profile_id: int, routine: dict):
     try:
-        with db.get_connection() as conn:
-            db._exec(
-                conn,
-                "UPDATE routines SET end_date=%s WHERE id=%s AND profile_id=%s",
-                (date.today().isoformat(), routine["id"], profile_id),
-            )
+        (db.get_client().table("routines")
+         .update({"end_date": date.today().isoformat()})
+         .eq("id", routine["id"])
+         .eq("profile_id", profile_id)
+         .execute())
         gm.award_xp(profile_id, "routine_complete", routine["name"], idempotent=False)
         st.success("Rutina completada. +500 XP")
         gm.check_achievements(profile_id)

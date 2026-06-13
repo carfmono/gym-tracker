@@ -25,7 +25,8 @@ _UNIT_LABELS = {
 }
 
 
-def render_gamification_dashboard(profile_id: int = 1):
+def render_gamification_dashboard():
+    profile_id = st.session_state.profile_id
     try:
         uxp = db.get_user_xp(profile_id)
         if not uxp:
@@ -225,15 +226,15 @@ def render_gamification_dashboard(profile_id: int = 1):
 
     days30 = [(today - timedelta(days=i)).isoformat() for i in range(29, -1, -1)]
     try:
-        with db.get_connection() as conn:
-            rows = db._fetch_all(
-                conn,
-                """SELECT DATE(created_at) AS day, SUM(xp_gained) AS xp
-                   FROM xp_log WHERE profile_id=%s AND created_at >= NOW() - INTERVAL '30 days'
-                   GROUP BY DATE(created_at) ORDER BY day""",
-                (profile_id,),
-            )
-        day_xp = {str(r["day"]): r["xp"] for r in rows}
+        res = (db.get_client().table("xp_log")
+               .select("created_at,xp_gained")
+               .eq("profile_id", profile_id)
+               .gte("created_at", days30[0])
+               .execute())
+        day_xp: dict[str, int] = {}
+        for r in (res.data or []):
+            day = str(r["created_at"])[:10]
+            day_xp[day] = day_xp.get(day, 0) + (r["xp_gained"] or 0)
     except Exception:
         day_xp = {}
 

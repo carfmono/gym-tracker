@@ -1,17 +1,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-import psycopg2
 import db
 import ui
 
 
 def render_routine_log():
+    profile_id = st.session_state.profile_id
     st.markdown(ui.label("HISTORIAL DE RUTINAS"), unsafe_allow_html=True)
 
     try:
-        routines = db.get_all_routines()
-    except psycopg2.DatabaseError:
+        routines = db.get_all_routines(profile_id)
+    except Exception:
         st.error("No se pudo cargar el historial. Intenta recargar la página.")
         return
 
@@ -54,8 +54,9 @@ def render_routine_log():
                         name      =name.strip(),
                         start_date=start_date.strftime("%Y-%m-%d"),
                         notes     =notes.strip(),
+                        profile_id=profile_id,
                     )
                     st.success(f"Rutina '{name}' guardada.")
                     st.rerun()
-                except psycopg2.DatabaseError:
+                except Exception:
                     st.error("Error al guardar la rutina.")

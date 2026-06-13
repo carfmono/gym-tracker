@@ -31,11 +31,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ── Tab routing ───────────────────────────────────────────────────────────────
-tab = st.query_params.get("tab", "hoy")
-st.markdown(ui.tab_bar(tab), unsafe_allow_html=True)
-
-# ── DB init (after UI so errors show on screen, not as blank page) ────────────
+# ── DB init (after CSS so errors show on screen, not as blank page) ───────────
 import db
 
 _db_error: str | None = None
@@ -44,12 +40,12 @@ try:
     db.migrate_db()
     db.seed_achievements()
     db.seed_routine_templates()
-    db.init_user_xp(1)
+    db.seed_template_exercises()
 except KeyError:
     _db_error = (
         "**Secrets de base de datos no configurados.**  \n"
         "Abre el panel de tu app en Streamlit Cloud → ⚙ Settings → Secrets  \n"
-        "y añade: `DATABASE_URL = \"postgresql://...\"`"
+        "y añade: `SUPABASE_URL` y `SUPABASE_KEY`."
     )
 except Exception as _e:
     _db_error = f"**No se pudo conectar a la base de datos.** `{_e}`"
@@ -57,6 +53,18 @@ except Exception as _e:
 if _db_error:
     st.error(_db_error)
     st.stop()
+
+# ── Auth gate ─────────────────────────────────────────────────────────────────
+if "user" not in st.session_state:
+    from components.auth import render_auth
+    render_auth()
+    st.stop()
+
+PROFILE_ID = st.session_state.profile_id
+
+# ── Tab routing ───────────────────────────────────────────────────────────────
+tab = st.query_params.get("tab", "hoy")
+st.markdown(ui.tab_bar(tab), unsafe_allow_html=True)
 
 # ── Render current page ───────────────────────────────────────────────────────
 if tab == "hoy":

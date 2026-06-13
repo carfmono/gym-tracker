@@ -4,9 +4,15 @@ import pandas as pd
 from datetime import date, timedelta
 import db
 import ui
-from data import WEEK_PLAN, POSTURE_ROUTINE, WEEKDAY_TO_KEY
+from data import POSTURE_ROUTINE
 
 DAY_LABELS = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"]
+DAY_FULL   = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+MONTH_NAMES = [
+    "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+    "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+]
 
 
 def _plotly_base() -> dict:
@@ -23,9 +29,40 @@ _PLOTLY_CFG = {"displayModeBar": False, "scrollZoom": False, "responsive": True}
 
 
 def render_month_view():
+    profile_id = st.session_state.profile_id
     today      = date.today()
-    year, month = today.year, today.month
-    first_day  = date(year, month, 1)
+
+    # ── Month navigation ───────────────────────────────────────────────────────
+    if "month_offset" not in st.session_state:
+        st.session_state.month_offset = 0
+
+    offset = st.session_state.month_offset
+    target = date(today.year, today.month, 1)
+    for _ in range(abs(offset)):
+        if offset < 0:
+            target = (target - timedelta(days=1)).replace(day=1)
+        else:
+            target = (target + timedelta(days=32)).replace(day=1)
+    year, month = target.year, target.month
+    first_day   = date(year, month, 1)
+
+    col_prev, col_title, col_next = st.columns([1, 4, 1])
+    with col_prev:
+        if st.button("◀", key="month_prev", use_container_width=True):
+            st.session_state.month_offset -= 1
+            st.rerun()
+    with col_title:
+        st.markdown(
+            f'<div style="text-align:center;font-family:var(--font-display);font-size:20px;'
+            f'text-transform:uppercase;color:var(--ink);padding-top:4px;">'
+            f'{MONTH_NAMES[month - 1]} {year}</div>',
+            unsafe_allow_html=True,
+        )
+    with col_next:
+        if st.button("▶", key="month_next", disabled=offset >= 0, use_container_width=True):
+            if st.session_state.month_offset < 0:
+                st.session_state.month_offset += 1
+                st.rerun()
 
     all_dates: list[date] = []
     d = first_day
@@ -34,34 +71,29 @@ def render_month_view():
         d += timedelta(days=1)
 
     date_strs    = [d.strftime("%Y-%m-%d") for d in all_dates]
-    stats        = db.get_stats_for_dates(date_strs)
+    stats        = db.get_stats_for_dates(date_strs, profile_id)
     sessions_map = stats.get("sessions", {})
     exercises_l  = stats.get("exercises", [])
     posture_l    = stats.get("posture", [])
 
-    ex_by_date: dict = {}
+    ex_done_by_date: dict[str, int] = {}
     for r in exercises_l:
-        ex_by_date.setdefault(r["date"], {})[r["exercise_id"]] = bool(r["completed"])
+        if bool(r["completed"]):
+            ex_done_by_date[r["date"]] = ex_done_by_date.get(r["date"], 0) + 1
 
     pos_by_date: dict = {}
     for r in posture_l:
         pos_by_date.setdefault(r["date"], {})[r["exercise_id"]] = bool(r["completed"])
 
     total_sessions     = sum(1 for ds in date_strs if sessions_map.get(ds))
+    total_ex_done      = sum(ex_done_by_date.values())
     total_posture_days = 0
-    total_ex_done      = 0
-    total_ex_all       = 0
     adherence_by_wd    = {i: {"done": 0, "total": 0} for i in range(7)}
     heat_data          = []
+    max_ex_day         = max(ex_done_by_date.values(), default=0)
 
     for d, ds in zip(all_dates, date_strs):
-        key    = WEEKDAY_TO_KEY[d.weekday()]
-        ddata  = WEEK_PLAN[key]
-        n_tot  = len(ddata["exercises"])
-        day_ex = ex_by_date.get(ds, {})
-        n_done = sum(1 for eid in ddata["exercises"] if day_ex.get(eid, False))
-        total_ex_done += n_done
-        total_ex_all  += n_tot
+        n_done = ex_done_by_date.get(ds, 0)
 
         pos_day  = pos_by_date.get(ds, {})
         pos_done = sum(1 for pid in POSTURE_ROUTINE if pos_day.get(pid, False))
@@ -73,13 +105,13 @@ def render_month_view():
         if sessions_map.get(ds):
             adherence_by_wd[wd]["done"] += 1
 
-        pct      = (n_done / n_tot * 100) if n_tot else 0
+        pct      = (n_done / max_ex_day * 100) if max_ex_day else 0
         week_col = (d.day + first_day.weekday() - 1) // 7
         heat_data.append({
             "weekday": wd,
             "week":    week_col,
             "pct":     pct,
-            "label":   f"{d.strftime('%d/%m')}<br>{n_done}/{n_tot}",
+            "label":   f"{d.strftime('%d/%m')}<br>{n_done} ejercicios",
         })
 
     adherencia = (total_sessions / len(all_dates) * 100) if all_dates else 0
@@ -90,14 +122,35 @@ def render_month_view():
     c2.metric("ADHERENCIA", f"{adherencia:.0f}%")
 
     c3, c4 = st.columns(2)
-    c3.metric("EJERCICIOS", f"{total_ex_done}/{total_ex_all}")
+    c3.metric("EJERCICIOS", total_ex_done)
     c4.metric("DÍAS POSTURA", f"{total_posture_days}/{len(all_dates)}")
 
+    # ── Mejor día + racha más larga del mes ────────────────────────────────────
+    best_wd, best_pct = None, 0.0
+    for i in range(7):
+        t = adherence_by_wd[i]["total"]
+        p = (adherence_by_wd[i]["done"] / t * 100) if t else 0
+        if p > best_pct:
+            best_wd, best_pct = i, p
+
+    longest_run, run = 0, 0
+    for ds in date_strs:
+        if sessions_map.get(ds):
+            run += 1
+            longest_run = max(longest_run, run)
+        else:
+            run = 0
+
+    c5, c6 = st.columns(2)
+    c5.metric("MEJOR DÍA", DAY_FULL[best_wd].upper() if best_wd is not None else "—",
+              delta=f"{best_pct:.0f}% adherencia" if best_wd is not None else None,
+              delta_color="off")
+    c6.metric("RACHA MÁS LARGA", f"{longest_run}d")
+
     # ── Progress bars ──────────────────────────────────────────────────────────
-    st.markdown(ui.label(f"PROGRESO — {today.strftime('%B %Y').upper()}"), unsafe_allow_html=True)
+    st.markdown(ui.label(f"PROGRESO — {MONTH_NAMES[month - 1]} {year}"), unsafe_allow_html=True)
     st.markdown(
-        ui.progress_bar("SESIONES", total_sessions, len(all_dates))
-        + ui.progress_bar("EJERCICIOS", total_ex_done, max(total_ex_all, 1)),
+        ui.progress_bar("SESIONES", total_sessions, len(all_dates)),
         unsafe_allow_html=True,
     )
 
@@ -127,7 +180,7 @@ def render_month_view():
         zmin        = 0,
         zmax        = 100,
         text        = txt_vals,
-        hovertemplate="%{text}<br>%{z:.0f}%<extra></extra>",
+        hovertemplate="%{text}<extra></extra>",
         showscale   = False,
         xgap        = 4,
         ygap        = 4,

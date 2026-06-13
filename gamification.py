@@ -233,14 +233,12 @@ def update_weekly_goals(profile_id: int) -> dict:
     monday = today - timedelta(days=today.weekday())
     week_start = monday.isoformat()
 
-    from datetime import datetime
-    week_end = (monday + timedelta(days=6)).isoformat()
     all_dates = [(monday + timedelta(days=i)).isoformat() for i in range(7)]
 
-    stats = db.get_stats_for_dates(all_dates)
+    stats = db.get_stats_for_dates(all_dates, profile_id)
     sessions_done = sum(1 for ds in all_dates if stats["sessions"].get(ds))
 
-    from data import POSTURE_ROUTINE, WEEK_PLAN, WEEKDAY_TO_KEY
+    from data import POSTURE_ROUTINE
     exercises_done = sum(
         sum(1 for _ in [r for r in stats["exercises"] if r["date"] == ds and bool(r["completed"])])
         for ds in all_dates
