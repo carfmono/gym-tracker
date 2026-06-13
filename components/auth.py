@@ -8,22 +8,31 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 def _auth_error_msg(e: Exception) -> str:
     """Convierte excepciones de Supabase en mensajes de usuario en español."""
-    msg = str(e).lower()
+    raw = str(e)
+    msg = raw.lower()
     if "already registered" in msg or "user already" in msg:
-        return "Ese email ya tiene cuenta. Usa **Iniciar sesión**."
+        return "Ese email ya tiene cuenta. Usa la pestaña **INICIAR SESIÓN**."
     if "invalid login credentials" in msg or "invalid email or password" in msg:
         return "Email o contraseña incorrectos."
     if "email not confirmed" in msg:
-        return "Confirma tu email antes de entrar. Revisa tu bandeja de entrada."
+        return (
+            "Tu email aún no está confirmado. "
+            "Revisa tu bandeja de entrada y haz clic en el enlace."
+        )
     if "password should be at least" in msg:
         return "La contraseña debe tener al menos 6 caracteres."
     if "unable to validate email" in msg or "invalid email" in msg:
         return "El formato del email no es válido."
     if "signup is disabled" in msg:
         return "El registro está deshabilitado. Contacta al administrador."
-    if "email rate limit" in msg or "too many requests" in msg:
-        return "Demasiados intentos. Espera unos minutos y vuelve a intentar."
-    if "connection" in msg or "timeout" in msg or "network" in msg or "connect" in msg:
+    if "over_email_send_rate_limit" in msg or "can only request this after" in msg:
+        import re as _re
+        secs = _re.search(r"after (\d+) second", raw)
+        wait = secs.group(1) if secs else "60"
+        return f"Demasiados intentos seguidos. Espera {wait} segundos y vuelve a intentar."
+    if "email rate limit" in msg or "too many requests" in msg or "rate limit" in msg:
+        return "Límite de intentos alcanzado. Espera 1 minuto y vuelve a intentar."
+    if "connection" in msg or "timeout" in msg or "network" in msg:
         return "Sin conexión con el servidor. Recarga la página."
     if "invalid api key" in msg or "unauthorized" in msg or "apikey" in msg:
         return "Error de configuración del servidor (API key inválida)."
@@ -33,7 +42,7 @@ def _auth_error_msg(e: Exception) -> str:
             "Ejecuta el script SQL del README en Supabase."
         )
     # fallback: mostrar el error real para diagnóstico
-    return f"Error: {str(e)[:200]}"
+    return f"Error: {raw[:200]}"
 
 
 def _post_login(user, display_name: str = ""):
