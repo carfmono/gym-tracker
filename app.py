@@ -56,9 +56,13 @@ if _db_error:
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if "user" not in st.session_state:
-    from components.auth import render_auth
-    render_auth()
-    st.stop()
+    # Intentar restaurar sesión del cliente Supabase cacheado (sobrevive recargas
+    # mientras el proceso del servidor siga activo).
+    from components.auth import try_restore_session
+    if not try_restore_session():
+        from components.auth import render_auth
+        render_auth()
+        st.stop()
 
 PROFILE_ID = st.session_state.profile_id
 
